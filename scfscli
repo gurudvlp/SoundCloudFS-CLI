@@ -1,0 +1,268 @@
+#!/bin/bash
+
+#####################################################################################
+#
+#	Written by Chad Gould								October 1, 2012
+#	www.gurudigitalsolutions.com
+#
+#####################################################################################
+#	
+#	Connects to existing scfsd and issues commands.  Makes possible searching 
+#	for new genres to link to the existing structure, making new files on the
+#	tree, removing existing branches on the tree, and changing the genres
+#	associated with each folder
+#
+#####################################################################################
+
+# Uncomment to debug
+#set -x
+
+##### GLOBAL VARIABLES ##############################################################
+
+IP=127.0.0.1					# local host is where daemon listens
+PORT=6034						# default is 6034
+maxData=17						# default 18, don't recommend changing
+prmpt=">"						# user prompt
+borderCharacter='#'				# character bordering sections
+
+#####################################################################################
+#	HELP LIST
+#####################################################################################
+
+helpList=(\
+"ls,list       [ List the contents of the current directory by pages ]" \
+"cd            [ Change to root directory unless PATHNAME is specified ]" \
+"mkdir         [ Creates a directory, specify a PATHNAME ]" \
+"rmdir         [ Removes a directory, specify a PATHNAME ]" \
+"link,query    [ Mounts soundcloud results for given GENRE ]" \
+"prev,back     [ Scroll back a page of results ]" \
+"next,forward  [ Scroll forward a page of results ]" \
+"help          [ Displays this help ]" \
+"q,quit,exit   [ Exits the scfsCLI ]" \
+"                                   " \
+"              [ COMMANDS AREN'T CASE SENSITIVE ]")
+
+#####################################################################################
+#	READS USERINPUT FROM PROMPT
+#####################################################################################
+
+function INPUT {
+	echo -n "$curDir $prmpt"
+	read -a key
+	input=$key
+	case ${key[@]} in
+		[lL][sS]|[lL][iI][sS][tT])
+			echo " LOADING..."		
+			LIST $curDir
+			;;
+		[cC][dD]*)
+			CD ${key[1]}
+			;;
+		[mM][kK][dD][iI][rR]*)
+			MKDIR ${key[1]}
+			;;
+		[rR][mM][dD][iI][rR]*)
+			RMDIR ${key[1]}
+			;;
+		[lL][iI][nN][kK]*|[qQ][uU][eE][rR][yY]*)
+			LINK ${key[1]}
+			wait
+			;;
+		[lL][sS][gG][eE][nN][rR][eE][sS])
+			echo " LOADING..."
+			LSGENRES
+			;;
+		[pP][rR][eE][vV]|[bB][aA][cC][kK])
+			PREV_PAGE
+			;;
+		[nN][eE][xX][tT]|[fF][oO][rR][wW][aA][rR][dD])
+			NEXT_PAGE
+			;;
+		[hH][eE][lL][pP])
+			data=("${helpList[@]}")
+			;;
+		[Qq]|[qQ][uU][iI][tT]|[eE][xX][iI][tT])
+			echo -e "GOODBYE"
+			exit
+			;;
+		*)
+			invalid="                        FOR ASSISTANCE TYPE HELP"
+			;;
+	esac
+	clear
+	TERMINAL
+}
+
+#####################################################################################
+#	SOUNDCLOUD USER FUNCTIONS
+#####################################################################################
+############### creates a branch on the directory tree
+function MKDIR {
+	curDir=$1
+	echo -e "mkdir $curDir\nexit" | nc $IP $PORT
+}
+###############	remove a branch from the directory tree
+function RMDIR {
+	echo -e "rmdir $1\nexit" | nc $IP $PORT
+}
+###############	list all branches/files in current directory
+function LIST {
+	PAGE_NUM="PAGE=$page" 
+	if [[ -n $curDir ]]; then
+		set -f; IFS=$'\n'
+		data=($(echo -e "cd ${curDir#/}\nls\nexit" | nc $IP $PORT))
+		unset IFS; set +f
+	elif [[ -z $curDir ]]; then
+		set -f; IFS=$'\n'
+		data=($(echo -e "ls\nexit" | nc $IP $PORT))
+		unset IFS; set +f
+	fi
+}
+############### changes the directory to given argument
+function CD {
+	if [[ -z $curDir ]]; then
+		curDir=$1
+	elif [[ -z $1 ]]; then
+		curDir=""
+	fi
+	echo -e "cd ${curDir}\nexit" | nc $IP $PORT
+}
+############## links a genre type with the current directory
+function LINK {
+	echo -e "cd $curDir\nquery genres $1\nexit" | nc $IP $PORT
+}
+############### lists genres associated with the directory
+function LSGENRES {
+	set -f; IFS=$'\n'
+	data=($(echo -e "cd $curDir\nlsgenres\nexit" | nc $IP $PORT))
+	unset IFS; set +f
+}
+
+#####################################################################################
+#	BUILTIN USER FUNCTIONS
+#####################################################################################
+############### page forward in results list
+function PREV_PAGE {
+	if [[ $page -gt 1 ]]; then
+		page=$((page-1))
+	else
+		input="ALREADY AT PAGE 1"
+	fi
+}
+############### back page in result list
+function NEXT_PAGE {
+	if [[ $page -lt $totalPages ]]; then
+		page=$((page+1))
+	else
+		input="ALREADY AT LAST PAGE"
+	fi
+}
+
+#####################################################################################
+#	BUILTIN MENU FUNCTIONS
+#####################################################################################
+function MENU_OPTIONS {
+#### Color values #####
+	gray=0		# GRAY
+	dblue=1		# DARK BLUE
+	dgreen=2	# DARK GREEN
+	lblue=3		# LIGHT BLUE
+	red=4		# RED
+	purple=5	# PURPLE
+	orange=6	# ORANGE
+	white=7		# WHITE
+	lgreen=8	# LIGHT GREEN
+	reset=sgr0	# RESET
+##### Terminal dimensions #####
+	size=($(stty size))
+	height=${size[0]};width=${size[1]}
+##### Header boreder #####
+	until [[ ${#borderLine} -ge $width ]]; do
+		borderLine="$borderLine$borderCharacter"
+	done
+	header=$borderLine
+}
+
+#####################################################################################
+#	MENU FUNCTIONS
+#####################################################################################
+############### sets colors to outputs
+function COLOR {
+	tput setf $1
+}
+############### Text displayed at to of terminal
+function INFO {
+	info="   WELCOME TO THE SOUNDCLOUD FILE SYSTEM COMMAND LINE INTERFACE! (scfsCLI)\n $invalid"
+	unset invalid
+}
+############### Lists data from data array
+function DATALIST {
+	unset dataList
+	[[ -z $page ]] && page=1
+#	 GET DATA COUNT
+	dataTotal=${#data[@]}
+#	 TOTALS NUMBER OF DATA PAGES
+	totalPages=$((dataTotal/maxData))
+	if [[ $((dataTotal%maxData)) -gt 0 ]]; then
+		totalPages=$((totalPages+1))
+	fi
+#	 DETERMINE START INDEX
+	index=$((page-1))
+	index=$((index*$maxData))
+#	 DETERMINE END INDEX
+	maxIndex=$((maxData*page))
+#	 BUILDS THE DATA LIST
+	if [[ $dataTotal -gt 0 ]]; then
+		until [[ $index = $maxIndex ]]; do
+			if [[ ${data[index]} != OK ]]; then
+				dataList="$dataList${data[index]#*:}\n"
+			fi
+			index=$((index+1))
+		done
+	else
+#	 PRESERVE DATALIST AREA WITH WHITESPACE
+		until [[ $index = $maxData ]]; do
+		dataList="$dataList\n"
+		index=$((index+1))
+		done
+	fi
+}
+############### Displays useful variables to terminal
+function FEEDBACK {
+	unset feedback
+	indent=1
+	onscreen=(INPUT=$input "$PAGE_NUM")
+	spacing=$((width/${#onscreen[@]}))
+	for item in "${onscreen[@]}"; do
+		until [[ ${#front} -ge $indent ]]; do
+			front="$front "
+		done
+		line="$front$item"
+		until [[ ${#line} -ge $spacing ]]; do
+			line="$line "
+		done
+		feedback="$feedback$line"
+	done
+}
+
+#####################################################################################
+#	OUTPUT TO USER
+#####################################################################################
+
+TERMINAL () {
+	DATALIST
+	INFO
+	FEEDBACK
+	tput bold
+	COLOR $dgreen;	echo -e "$header"
+	COLOR $dblue; 	echo -e "$info"
+	COLOR $lblue;	echo -e "$dataList"
+	COLOR $red;		echo -e "$feedback"
+	COLOR $dgreen;	echo -e "$header"
+	tput sgr0
+	COLOR $purple;	INPUT
+}
+############### Initialize menu options
+MENU_OPTIONS
+############### Start terminal loop
+TERMINAL
