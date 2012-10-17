@@ -24,12 +24,67 @@ PORT=6034						# default is 6034
 maxData=17						# default 18, don't recommend changing
 prmpt=">"						# user prompt
 borderCharacter='#'				# character bordering sections
-<<<<<<< HEAD
 INVALID="                        FOR ASSISTANCE TYPE HELP"
 invalid=$INVALID
-=======
 
->>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
+#####################################################################################
+# contains all functions related to the command line flags
+#####################################################################################
+function OPTIONS {
+	flag_help="\
+-h, --help		Prints this help to screen
+--port			Sets the port number to connect on, default is 6034
+--host			Sets the ip of the host to connect to, default localhost
+"
+	BADARGS="\
+invalid usage of $1
+$flag_help"
+############### interprets the flags given
+function FLAGS {
+	until [[ $# -eq 0 ]]; do
+		case $1 in
+			--host)
+				if [[ -n $2 ]]; then
+					IP=$2
+				else
+					echo -e "$BADARGS"
+					exit
+				fi
+				;;
+			--port)
+				if [[ -n $2 ]]; then
+					PORT=$2
+				else
+					echo -e "$BADARGS"
+					exit
+				fi
+				;;
+		esac
+	shift
+	done
+}
+############### only shows help if -h or --help are passed
+function HELP {
+	until [[ $# -eq 0 ]]; do
+		case $1 in
+			-h|--help)
+				echo -e "$flag_help"
+				exit
+				;;
+		esac
+	shift
+	done
+}
+
+
+if [[ $# -ge 1 ]]; then
+	HELP $@
+	FLAGS $@
+fi
+#####################################################################################
+}
+OPTIONS $@
+
 #####################################################################################
 #	HELP LIST
 #####################################################################################
@@ -40,6 +95,8 @@ helpList=(\
 "mkdir         [ Creates a directory, specify a PATHNAME ]" \
 "rmdir         [ Removes a directory, specify a PATHNAME ]" \
 "link,query    [ Mounts soundcloud results for given GENRE ]" \
+"offset        [ Sets the result offset, default is 0 ]"\ 
+"limit         [ Sets the limit of results, default is 20 ]"\ 
 "prev,back     [ Scroll back a page of results ]" \
 "next,forward  [ Scroll forward a page of results ]" \
 "help          [ Displays this help ]" \
@@ -71,6 +128,7 @@ function INPUT {
 			;;
 		[lL][iI][nN][kK]*|[qQ][uU][eE][rR][yY]*)
 			LINK ${key[1]}
+			echo " LOADING..."
 			wait
 			;;
 		[lL][sS][gG][eE][nN][rR][eE][sS])
@@ -88,18 +146,21 @@ function INPUT {
 			;;
 		[Qq]|[qQ][uU][iI][tT]|[eE][xX][iI][tT])
 			echo -e "GOODBYE"
-<<<<<<< HEAD
 			COLOR $reset
 			exit
 			;;
+		[Ll][Ii][Mm][Ii][Tt]*)
+			LIMIT ${key[1]}
+			;;
+		[Oo][Ff][Ff][Ss][Ee][Tt]*)
+			OFFSET ${key[1]}
+			;;
 		*)
 			invalid=$INVALID
-=======
 			exit
 			;;
 		*)
 			invalid="                        FOR ASSISTANCE TYPE HELP"
->>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
 			;;
 	esac
 	clear
@@ -149,6 +210,14 @@ function LSGENRES {
 	set -f; IFS=$'\n'
 	data=($(echo -e "cd $curDir\nlsgenres\nexit" | nc $IP $PORT))
 	unset IFS; set +f
+}
+############### sets the limit of results obtained from a query
+function LIMIT {
+	echo -e "cd $curDir\nquery limit $1\nexit" | nc $IP $PORT
+}
+############### sets the offset of results obtained from a query
+function OFFSET {
+	echo -e "cd $curDir\nquery offset $1\nexit" | nc $IP $PORT
 }
 
 #####################################################################################
@@ -272,11 +341,7 @@ TERMINAL () {
 	COLOR $lblue;	echo -e "$dataList"
 	COLOR $red;		echo -e "$feedback"
 	COLOR $dgreen;	echo -e "$header"
-<<<<<<< HEAD
 	COLOR $reset
-=======
-	tput sgr0
->>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
 	COLOR $purple;	INPUT
 }
 ############### Initialize menu options
