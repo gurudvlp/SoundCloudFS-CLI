@@ -24,7 +24,12 @@ PORT=6034						# default is 6034
 maxData=17						# default 18, don't recommend changing
 prmpt=">"						# user prompt
 borderCharacter='#'				# character bordering sections
+<<<<<<< HEAD
+INVALID="                        FOR ASSISTANCE TYPE HELP"
+invalid=$INVALID
+=======
 
+>>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
 #####################################################################################
 #	HELP LIST
 #####################################################################################
@@ -83,10 +88,18 @@ function INPUT {
 			;;
 		[Qq]|[qQ][uU][iI][tT]|[eE][xX][iI][tT])
 			echo -e "GOODBYE"
+<<<<<<< HEAD
+			COLOR $reset
+			exit
+			;;
+		*)
+			invalid=$INVALID
+=======
 			exit
 			;;
 		*)
 			invalid="                        FOR ASSISTANCE TYPE HELP"
+>>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
 			;;
 	esac
 	clear
@@ -259,7 +272,11 @@ TERMINAL () {
 	COLOR $lblue;	echo -e "$dataList"
 	COLOR $red;		echo -e "$feedback"
 	COLOR $dgreen;	echo -e "$header"
+<<<<<<< HEAD
+	COLOR $reset
+=======
 	tput sgr0
+>>>>>>> 400875fea7252be30f024ae05ceac65af8e585d5
 	COLOR $purple;	INPUT
 }
 ############### Initialize menu options
