@@ -238,7 +238,7 @@ function LINK {
 		[Gg]*)
 			QUERY genres $2
 			;;
-		[Uu][Ss][Ee][Rr]*)
+		[Uu]*|[aA]*)
 			QUERY username $2
 			;;
 		*)
