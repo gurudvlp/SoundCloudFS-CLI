@@ -24,6 +24,7 @@ PORT=6034						# default is 6034
 maxData=17						# default 18, don't recommend changing
 prmpt=">"						# user prompt
 borderCharacter='#'				# character bordering sections
+curDir='/'						# sets starting directory
 INVALID="                        FOR ASSISTANCE TYPE HELP"
 invalid=$INVALID
 
@@ -113,54 +114,67 @@ function INPUT {
 	read -a key
 	input=$key
 	case ${key[@]} in
-		[lL][sS]|[lL][iI][sS][tT])
-			echo " LOADING..."		
+		# list
+		[lL][sS]|[lL][iI][sS][tT])		
 			LIST $curDir
+			LOADING
 			;;
+		# change directory
 		[cC][dD]*)
 			CD ${key[1]}
 			;;
+		# make directory
 		[mM][kK][dD][iI][rR]*)
 			MKDIR ${key[1]}
 			;;
+		# remove directory
 		[rR][mM][dD][iI][rR]*)
 			RMDIR ${key[1]}
 			;;
+		# link or query username or genre
 		[lL][iI][nN][kK]*|[qQ][uU][eE][rR][yY]*)
-			LINK ${key[1]}
-			echo " LOADING..."
+			LINK ${key[@]:1}
+			LOADING
 			wait
 			;;
+		# list genres
 		[lL][sS][gG][eE][nN][rR][eE][sS])
-			echo " LOADING..."
 			LSGENRES
+			LOADING
 			;;
+		# list users
+		[lL][sS][uU][sS][Ee][rR])
+			LSUSERS
+			LOADING
+			;;
+		# previous or back page
 		[pP][rR][eE][vV]|[bB][aA][cC][kK])
 			PREV_PAGE
 			;;
+		# next or forward page
 		[nN][eE][xX][tT]|[fF][oO][rR][wW][aA][rR][dD])
 			NEXT_PAGE
 			;;
+		# help
 		[hH][eE][lL][pP])
 			data=("${helpList[@]}")
 			;;
+		# exit or quit
 		[Qq]|[qQ][uU][iI][tT]|[eE][xX][iI][tT])
 			echo -e "GOODBYE"
 			COLOR $reset
 			exit
 			;;
+		# limit
 		[Ll][Ii][Mm][Ii][Tt]*)
 			LIMIT ${key[1]}
 			;;
+		# offset
 		[Oo][Ff][Ff][Ss][Ee][Tt]*)
 			OFFSET ${key[1]}
 			;;
 		*)
 			invalid=$INVALID
-			exit
-			;;
-		*)
-			invalid="                        FOR ASSISTANCE TYPE HELP"
 			;;
 	esac
 	clear
@@ -172,12 +186,13 @@ function INPUT {
 #####################################################################################
 ############### creates a branch on the directory tree
 function MKDIR {
-	curDir=$1
-	echo -e "mkdir $curDir\nexit" | nc $IP $PORT
+	echo -e "cd $curDir\nmkdir $1\nexit" | nc $IP $PORT
+	LS
 }
 ###############	remove a branch from the directory tree
 function RMDIR {
-	echo -e "rmdir $1\nexit" | nc $IP $PORT
+	echo -e "cd $curDir\nrmdir $1\nexit" | nc $IP $PORT
+	LS
 }
 ###############	list all branches/files in current directory
 function LIST {
@@ -194,21 +209,53 @@ function LIST {
 }
 ############### changes the directory to given argument
 function CD {
-	if [[ -z $curDir ]]; then
+	updir='..'
+	if [[ ! -n $1 ]]; then
+		unset curDir
+		curDir='/'
+	elif [[ $1 == $updir ]]; then
+		curDir=${curDir%/*}
+		if [[ -z $curDir ]]; then
+			curDir='/'
+		fi
+	elif [[ $1 == /* ]]; then
 		curDir=$1
-	elif [[ -z $1 ]]; then
-		curDir=""
+	else
+		if [[ $curDir == "/" ]]; then
+			curDir=$curDir$1
+		else
+			curDir=$curDir/$1
+		fi
 	fi
-	echo -e "cd ${curDir}\nexit" | nc $IP $PORT
+	LIST
 }
 ############## links a genre type with the current directory
 function LINK {
-	echo -e "cd $curDir\nquery genres $1\nexit" | nc $IP $PORT
+	function QUERY {
+	echo -e "cd $curDir\nquery $1 $2\nexit" | nc $IP $PORT
+	}
+	case $1 in
+		[Gg]*)
+			QUERY genres $2
+			;;
+		[Uu][Ss][Ee][Rr]*)
+			QUERY username $2
+			;;
+		*)
+			invalid=$INVALID
+			;;
+	esac
 }
 ############### lists genres associated with the directory
 function LSGENRES {
 	set -f; IFS=$'\n'
 	data=($(echo -e "cd $curDir\nlsgenres\nexit" | nc $IP $PORT))
+	unset IFS; set +f
+}
+############### list users associated with the directory
+function LSUSER {
+	set -f; IFS=$'\n'
+	data=($(echo -e "cd $curDir\nlsuser\nexit" | nc $IP $PORT))
 	unset IFS; set +f
 }
 ############### sets the limit of results obtained from a query
@@ -326,7 +373,11 @@ function FEEDBACK {
 		feedback="$feedback$line"
 	done
 }
-
+function LOADING {
+	clear
+	COLOR $dgreen;	echo -e "$header"
+	COLOR $red; echo -e "	LOADING......"
+}
 #####################################################################################
 #	OUTPUT TO USER
 #####################################################################################
